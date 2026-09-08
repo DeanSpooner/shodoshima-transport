@@ -1,0 +1,2 @@
+﻿office_id,office_name,office_url,office_phone
+1,株式会社かんかけタクシー,香川県小豆郡小豆島町草壁本町602番地28,0879-82-2288

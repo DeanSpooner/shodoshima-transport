@@ -1,0 +1,2 @@
+﻿agency_id,agency_official_name,agency_zip_number,agency_address
+3000020373249,小豆島町企画財政課,7614492,香川県小豆郡小豆島町片城甲４４番地９５

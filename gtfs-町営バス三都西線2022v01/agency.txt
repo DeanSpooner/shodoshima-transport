@@ -1,0 +1,2 @@
+﻿agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone
+3000020373249,町営バス三都西線,https://www.town.shodoshima.lg.jp/,Asia/Tokyo,ja,0879-82-7000
