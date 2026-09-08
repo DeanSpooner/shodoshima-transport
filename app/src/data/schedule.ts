@@ -5,6 +5,7 @@ export type ScheduleEntry = {
   departure_time: string
   stop_sequence: number
   headsign: string
+  headsign_en: string
 }
 
 import scheduleJson from './schedule.json'

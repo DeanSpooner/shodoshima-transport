@@ -8,9 +8,13 @@ export type BusProperties = {
   trip_id: string
   route_id: string
   headsign: string
+  headsign_en: string
   origin_name: string
+  origin_name_en: string
   destination_name: string
+  destination_name_en: string
   next_stop_name: string
+  next_stop_name_en: string
   next_stop_time: number
 }
 
@@ -86,9 +90,13 @@ export function buildBusFeatures(now: number): FeatureCollection<Point, BusPrope
         trip_id: trip.trip_id,
         route_id: trip.route_id,
         headsign: trip.headsign,
+        headsign_en: trip.headsign_en,
         origin_name: trip.stops[0].stop_name,
+        origin_name_en: trip.stops[0].stop_name_en,
         destination_name: trip.stops[trip.stops.length - 1].stop_name,
+        destination_name_en: trip.stops[trip.stops.length - 1].stop_name_en,
         next_stop_name: nextStop.stop_name,
+        next_stop_name_en: nextStop.stop_name_en,
         next_stop_time: nextStop.arr,
       },
     })

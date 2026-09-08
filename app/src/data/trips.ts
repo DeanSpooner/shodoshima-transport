@@ -1,6 +1,7 @@
 export type TripStop = {
   stop_id: string
   stop_name: string
+  stop_name_en: string
   seq: number
   /** Arrival, as seconds since midnight Japan time. */
   arr: number
@@ -15,6 +16,7 @@ export type TripEntry = {
   route_id: string
   shape_id: string
   headsign: string
+  headsign_en: string
   direction_id: number
   /** First stop's departure, as seconds since midnight Japan time. */
   start: number

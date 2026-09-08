@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RouteInfo } from '../data/routes';
+import { localisedName, useLanguage } from '../lib/i18n';
 
 type RouteFilterProps = {
   routes: RouteInfo[];
@@ -12,6 +13,7 @@ export function RouteFilter({
   enabledRouteIds,
   onToggleRoute,
 }: RouteFilterProps) {
+  const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +38,9 @@ export function RouteFilter({
         aria-expanded={isOpen}
         className='flex items-center gap-1.5 rounded-md bg-olive-100 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-200'
       >
-        {hiddenCount === 0 ? 'All routes' : `${enabledRouteIds.size} of ${routes.length} routes`}
+        {hiddenCount === 0
+          ? t.allRoutes
+          : t.routesSelected(enabledRouteIds.size, routes.length)}
         <svg
           xmlns='http://www.w3.org/2000/svg'
           viewBox='0 0 24 24'
@@ -74,14 +78,22 @@ export function RouteFilter({
                       isEnabled ? 'text-olive-900' : 'text-olive-400'
                     }`}
                   >
-                    {route.route_short_name}
+                    {localisedName(
+                      language,
+                      route.route_short_name,
+                      route.route_short_name_en,
+                    )}
                   </span>
                   <span
                     className={`block truncate text-xs ${
                       isEnabled ? 'text-clay-600' : 'text-olive-400'
                     }`}
                   >
-                    {route.route_long_name}
+                    {localisedName(
+                      language,
+                      route.route_long_name,
+                      route.route_long_name_en,
+                    )}
                   </span>
                 </span>
               </label>

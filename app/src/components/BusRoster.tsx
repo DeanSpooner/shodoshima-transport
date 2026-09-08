@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Feature, Point } from 'geojson';
 import type { BusProperties } from '../lib/busPositions';
+import { localisedName, useLanguage } from '../lib/i18n';
 
 type BusRosterProps = {
   buses: Feature<Point, BusProperties>[];
@@ -13,6 +14,7 @@ export function BusRoster({
   followedTripId,
   onSelectBus,
 }: BusRosterProps) {
+  const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,9 +41,7 @@ export function BusRoster({
   }, [isOpen]);
 
   const label =
-    buses.length === 0
-      ? 'No buses in service'
-      : `${buses.length} bus${buses.length === 1 ? '' : 'es'} in service`;
+    buses.length === 0 ? t.noBuses : t.busesInService(buses.length);
 
   return (
     <div ref={containerRef} className='relative'>
@@ -78,7 +78,14 @@ export function BusRoster({
           className='absolute right-0 mt-1.5 w-72 max-h-72 overflow-y-auto stop-schedule-list rounded-md border border-olive-300 bg-olive-50 p-1 shadow-lg'
         >
           {buses.map(bus => {
-            const { trip_id, origin_name, destination_name } = bus.properties;
+            const p = bus.properties;
+            const trip_id = p.trip_id;
+            const origin = localisedName(language, p.origin_name, p.origin_name_en);
+            const destination = localisedName(
+              language,
+              p.destination_name,
+              p.destination_name_en,
+            );
             const isFollowed = trip_id === followedTripId;
             return (
               <li key={trip_id}>
@@ -96,10 +103,10 @@ export function BusRoster({
                       : 'text-olive-800 hover:bg-olive-200/50'
                   }`}
                 >
-                  <span className='block truncate'>{origin_name}</span>
+                  <span className='block truncate'>{origin}</span>
                   <span className='flex items-baseline gap-1 truncate text-clay-600'>
                     <span aria-hidden='true'>&rarr;</span>
-                    {destination_name}
+                    {destination}
                   </span>
                 </button>
               </li>

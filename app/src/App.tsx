@@ -1,28 +1,44 @@
 import { ShodoshimaMap } from './components/ShodoshimaMap';
+import { LanguageToggle } from './components/LanguageToggle';
+import { LanguageProvider } from './components/LanguageProvider';
+import { useLanguage } from './lib/i18n';
 
-function App() {
+function AppShell() {
+  const { language, t } = useLanguage();
+
   return (
-    <div className='h-screen w-screen flex flex-col'>
+    <div className='h-screen w-screen flex flex-col' lang={language}>
       <header className='flex items-center gap-2 px-4 py-2.5 bg-olive-800 text-olive-50 text-sm font-semibold tracking-wide border-b-2 border-clay-500'>
         <img
           src='/Olive_Shima-chan-square.png'
           alt=''
           className='h-6 w-6 rounded-full bg-olive-50'
         />
-        Shodoshima Bus Routes
-        <a
-          href='https://github.com/DeanSpooner'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='ml-auto text-xs font-normal text-olive-200 transition-colors duration-200 hover:text-olive-50 hover:underline'
-        >
-          Built by Dean Spooner
-        </a>
+        {t.appTitle}
+        <div className='ml-auto flex items-center gap-3'>
+          <a
+            href='https://github.com/DeanSpooner'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-xs font-normal text-olive-200 transition-colors duration-200 hover:text-olive-50 hover:underline'
+          >
+            {t.builtBy}
+          </a>
+          <LanguageToggle />
+        </div>
       </header>
       <main className='flex-1'>
         <ShodoshimaMap />
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppShell />
+    </LanguageProvider>
   );
 }
 

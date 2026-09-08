@@ -4,6 +4,8 @@ export type RouteInfo = {
   route_id: string
   route_short_name: string
   route_long_name: string
+  route_short_name_en: string
+  route_long_name_en: string
 }
 
 // routes.geojson.json holds one feature per shape (several per route), so the
@@ -16,6 +18,8 @@ for (const feature of routesGeojson.features) {
     route_id: props.route_id,
     route_short_name: props.route_short_name ?? props.route_id,
     route_long_name: props.route_long_name ?? '',
+    route_short_name_en: props.route_short_name_en ?? props.route_id,
+    route_long_name_en: props.route_long_name_en ?? '',
   })
 }
 

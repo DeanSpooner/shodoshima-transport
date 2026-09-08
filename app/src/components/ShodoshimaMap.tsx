@@ -14,6 +14,7 @@ import routesGeojson from '../data/routes.geojson.json';
 import { scheduleByStopId } from '../data/schedule';
 import { allRoutes } from '../data/routes';
 import { useBusPositions, type BusProperties } from '../lib/busPositions';
+import { localisedName, useLanguage } from '../lib/i18n';
 import { BusRoster } from './BusRoster';
 import { RouteFilter } from './RouteFilter';
 import {
@@ -42,6 +43,7 @@ const MAP_CONTROL_BUTTON_CLASSES =
 type StopProperties = {
   stop_id: string;
   stop_name: string;
+  stop_name_en: string;
   zone_id: string;
 };
 
@@ -81,6 +83,7 @@ function animateStopProgress(
 }
 
 export function ShodoshimaMap() {
+  const { language, t } = useLanguage();
   const mapRef = useRef<MapRef>(null);
   const activeAnimationsRef = useRef(new Map<number, number>());
   const prevFeatureIdRef = useRef<number | null>(null);
@@ -347,8 +350,8 @@ export function ShodoshimaMap() {
         <button
           type='button'
           onClick={onZoomIn}
-          aria-label='Zoom in'
-          title='Zoom in'
+          aria-label={t.zoomIn}
+          title={t.zoomIn}
           className={MAP_CONTROL_BUTTON_CLASSES}
         >
           <svg
@@ -369,8 +372,8 @@ export function ShodoshimaMap() {
         <button
           type='button'
           onClick={onZoomOut}
-          aria-label='Zoom out'
-          title='Zoom out'
+          aria-label={t.zoomOut}
+          title={t.zoomOut}
           className={MAP_CONTROL_BUTTON_CLASSES}
         >
           <svg
@@ -390,8 +393,8 @@ export function ShodoshimaMap() {
         <button
           type='button'
           onClick={onRecenter}
-          aria-label='Recentre map on Shodoshima'
-          title='Recentre map'
+          aria-label={t.recentre}
+          title={t.recentre}
           className={MAP_CONTROL_BUTTON_CLASSES}
         >
           <svg
@@ -523,12 +526,16 @@ export function ShodoshimaMap() {
           <div className='min-w-72'>
             <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1.5 mb-1.5'>
               <h3 className='font-semibold text-base text-olive-900'>
-                {displayedStop.props.stop_name}
+                {localisedName(
+                  language,
+                  displayedStop.props.stop_name,
+                  displayedStop.props.stop_name_en,
+                )}
               </h3>
               <button
                 type='button'
                 onClick={() => setSelectedStop(null)}
-                aria-label='Close'
+                aria-label={t.close}
                 className='shrink-0 flex items-center justify-center h-6 w-6 rounded text-olive-500 hover:text-olive-800 hover:bg-olive-200/70'
               >
                 <svg
@@ -548,7 +555,7 @@ export function ShodoshimaMap() {
             </div>
             {schedule.length === 0 ? (
               <p className='text-sm text-olive-600 mt-1'>
-                No scheduled departures
+                {t.noDepartures}
               </p>
             ) : (
               <ul className='stop-schedule-list text-sm mt-1 space-y-1 max-h-56 overflow-y-auto'>
@@ -568,12 +575,12 @@ export function ShodoshimaMap() {
                           isPast ? 'text-olive-400' : 'text-olive-900'
                         }`}
                       >
-                        {s.departure_time}
+                        {formatSeconds(timeToSeconds(s.departure_time))}
                       </span>
                       <span
                         className={isPast ? 'text-olive-400' : 'text-clay-600'}
                       >
-                        {s.headsign}
+                        {localisedName(language, s.headsign, s.headsign_en)}
                       </span>
                     </li>
                   );
@@ -598,12 +605,16 @@ export function ShodoshimaMap() {
           <div className='min-w-56'>
             <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1.5 mb-1.5'>
               <h3 className='font-semibold text-base text-olive-900'>
-                {selectedBus.properties.headsign}
+                {localisedName(
+                  language,
+                  selectedBus.properties.headsign,
+                  selectedBus.properties.headsign_en,
+                )}
               </h3>
               <button
                 type='button'
                 onClick={() => setSelectedTripId(null)}
-                aria-label='Close'
+                aria-label={t.close}
                 className='shrink-0 flex items-center justify-center h-6 w-6 rounded text-olive-500 hover:text-olive-800 hover:bg-olive-200/70'
               >
                 <svg
@@ -623,30 +634,42 @@ export function ShodoshimaMap() {
             </div>
             <dl className='text-sm space-y-1'>
               <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
-                <dt className='text-olive-600'>Route</dt>
+                <dt className='text-olive-600'>{t.route}</dt>
                 <dd className='text-olive-900 font-medium'>
-                  {selectedBus.properties.origin_name}
+                  {localisedName(
+                    language,
+                    selectedBus.properties.origin_name,
+                    selectedBus.properties.origin_name_en,
+                  )}
                   <span aria-hidden='true' className='mx-1 text-olive-900'>
                     &rarr;
                   </span>
-                  {selectedBus.properties.destination_name}
+                  {localisedName(
+                    language,
+                    selectedBus.properties.destination_name,
+                    selectedBus.properties.destination_name_en,
+                  )}
                 </dd>
               </div>
               <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
-                <dt className='text-olive-600'>Next stop</dt>
+                <dt className='text-olive-600'>{t.nextStop}</dt>
                 <dd className='text-olive-900 font-medium'>
-                  {selectedBus.properties.next_stop_name}
+                  {localisedName(
+                    language,
+                    selectedBus.properties.next_stop_name,
+                    selectedBus.properties.next_stop_name_en,
+                  )}
                 </dd>
               </div>
               <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
-                <dt className='text-olive-600'>Arrives</dt>
+                <dt className='text-olive-600'>{t.arrives}</dt>
                 <dd className='text-olive-900 font-medium tabular-nums'>
                   {formatSeconds(selectedBus.properties.next_stop_time)}
                 </dd>
               </div>
             </dl>
             <p className='text-xs text-olive-500 mt-2 pt-1.5 border-t border-olive-200'>
-              Simulated from the timetable, not live tracking
+              {t.simulatedNote}
             </p>
           </div>
         </Popup>

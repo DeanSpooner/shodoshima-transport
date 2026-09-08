@@ -21,6 +21,92 @@ const routes = readCsv('routes.txt')
 const trips = readCsv('trips.txt')
 const stopTimes = readCsv('stop_times.txt')
 const shapes = readCsv('shapes.txt')
+const translations = readCsv('translations.txt')
+
+// --- English names --------------------------------------------------------
+// The feed's translations.txt covers every stop name and trip headsign, but
+// its English is romanisation rather than translation, and mostly SHOUTED
+// ("KOUNOURANISHI"). Entries that are entirely uppercase get title-cased;
+// ones the feed already wrote in mixed case ("Tyouei Bus Mito Nishi Line")
+// are left exactly as published.
+function titleCaseRomaji(value) {
+  if (value !== value.toUpperCase()) return value
+  return value
+    .toLowerCase()
+    .replace(/(^|[\s(-])([a-z])/g, (_, before, letter) => before + letter.toUpperCase())
+}
+
+// Names the feed does not translate at all, so there is nothing to override -
+// these are written from scratch.
+const MISSING_TRANSLATIONS = {
+  // Route names
+  '三都西': 'Mito Nishi',
+  '瀬戸芸臨時1': 'Setouchi Triennale Shuttle 1',
+  '瀬戸芸臨時2': 'Setouchi Triennale Shuttle 2',
+  '瀬戸内国際芸術祭2022臨時線1': 'Setouchi Triennale 2022 Shuttle Line 1',
+  '瀬戸内国際芸術祭2022臨時線2': 'Setouchi Triennale 2022 Shuttle Line 2',
+}
+
+// Corrections to the feed's own English. Every name the feed translates is
+// listed, pre-filled with exactly what it currently produces, so improving one
+// means rewriting its value rather than hunting for the key. These take
+// precedence over translations.txt, so a correction here will also mask any
+// future improvement the feed makes to that name.
+const NAME_CORRECTIONS = {
+  // Stop names
+  '芦ノ浦': 'Ashinoura',
+  'ベイリゾートホテル前': 'Bay Resort Hotel Front',
+  '福田港': 'Fukuda Port',
+  '福武ハウス': 'Fukutake House',
+  '二面': 'Futaomote',
+  '浜条': 'Hamajou',
+  '市神子': 'Ichimiko',
+  '池田港ターミナル前': 'Ikeda Port Terminal Front',
+  '池田内科クリニック（池田港前）': 'Ikedanaika Clinic (Ikeda Port Front)',
+  '井上誠耕園らしく園前': 'Inoue Seikoen Rashiku Garden Front',
+  '蒲野': 'Kamano',
+  '蒲野浜': 'Kamanohama',
+  '寒霞渓山頂': 'Kankakei Mountaintop',
+  '国民宿舎前': 'National Guest House Front',
+  '神浦': 'Kounoura',
+  '神浦西': 'Kounoura West',
+  '草壁港': 'Kusakabe Port',
+  '丸金前': 'Marukin Front',
+  '目見ヶ谷': 'Memigatani',
+  '室生': 'Murou',
+  'オリーブ公園口': 'Olive Park Entrance',
+  '坂手港ターミナル前': 'Sakate Port Terminal Front',
+  '小豆島ふるさと村': 'Shodoshima Furusato Village',
+  '小豆島中央病院': 'Shodoshima Central Hospital',
+  '小豆島中央高校前': 'Shodoshima Central High School Front',
+  '田ノ浦映画村': 'Tanoura Movie Village',
+  '東洋オリーブショップ前': 'Toyo Olive Shop Front',
+  '馬木': 'Umaki',
+  '安田': 'Yasuda',
+  '吉野': 'Yoshino',
+  '吉野浜': 'Yoshinohama',
+  '吉ヶ浦': 'Yoshigaura',
+
+  // Route names
+  '町営バス三都西線': 'Chouei Bus Mito West Line',
+}
+
+const englishByJapanese = new Map()
+for (const row of translations) {
+  if (row.language !== 'en' || !row.field_value || !row.translation) continue
+  englishByJapanese.set(row.field_value, titleCaseRomaji(row.translation))
+}
+// Applied after the feed, so both fill gaps and override.
+for (const [japanese, english] of [
+  ...Object.entries(MISSING_TRANSLATIONS),
+  ...Object.entries(NAME_CORRECTIONS),
+]) {
+  englishByJapanese.set(japanese, english)
+}
+
+// Falls back to the Japanese so a missing translation degrades to something
+// readable rather than to a blank.
+const toEnglish = (value) => englishByJapanese.get(value) ?? value
 
 // stops -> GeoJSON FeatureCollection
 const stopsGeojson = {
@@ -34,6 +120,7 @@ const stopsGeojson = {
     properties: {
       stop_id: s.stop_id,
       stop_name: s.stop_name,
+      stop_name_en: toEnglish(s.stop_name),
       zone_id: s.zone_id,
     },
   })),
@@ -76,6 +163,12 @@ const routesGeojson = {
         route_id: routeId ?? null,
         route_short_name: route?.route_short_name ?? null,
         route_long_name: route?.route_long_name ?? null,
+        route_short_name_en: route?.route_short_name
+          ? toEnglish(route.route_short_name)
+          : null,
+        route_long_name_en: route?.route_long_name
+          ? toEnglish(route.route_long_name)
+          : null,
       },
     }
   }),
@@ -203,6 +296,7 @@ for (const st of stopTimes) {
     departure_time: st.departure_time,
     stop_sequence: Number(st.stop_sequence),
     headsign: trip.trip_headsign,
+    headsign_en: toEnglish(trip.trip_headsign),
   })
 }
 // GTFS times are H:MM:SS (not zero-padded, and can exceed 24:00:00 for
@@ -300,6 +394,7 @@ for (const trip of trips) {
   const tripStops = rows.map((r, i) => ({
     stop_id: r.stop_id,
     stop_name: stopById.get(r.stop_id).stop_name,
+    stop_name_en: toEnglish(stopById.get(r.stop_id).stop_name),
     seq: Number(r.stop_sequence),
     arr: timeToSeconds(r.arrival_time),
     dep: timeToSeconds(r.departure_time),
@@ -327,6 +422,7 @@ for (const trip of trips) {
     route_id: trip.route_id,
     shape_id: trip.shape_id,
     headsign: trip.trip_headsign,
+    headsign_en: toEnglish(trip.trip_headsign),
     direction_id: Number(trip.direction_id),
     start,
     end,
