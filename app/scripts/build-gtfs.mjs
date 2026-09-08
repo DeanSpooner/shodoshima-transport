@@ -97,8 +97,18 @@ for (const st of stopTimes) {
     headsign: trip.trip_headsign,
   })
 }
+// GTFS times are H:MM:SS (not zero-padded, and can exceed 24:00:00 for
+// past-midnight trips), so they must be compared as elapsed seconds rather
+// than as strings.
+function timeToSeconds(time) {
+  const [h, m, s] = time.split(':').map(Number)
+  return h * 3600 + m * 60 + s
+}
+
 for (const entries of Object.values(scheduleByStopId)) {
-  entries.sort((a, b) => a.departure_time.localeCompare(b.departure_time))
+  entries.sort(
+    (a, b) => timeToSeconds(a.departure_time) - timeToSeconds(b.departure_time),
+  )
 }
 
 writeFileSync(path.join(OUT_DIR, 'stops.geojson.json'), JSON.stringify(stopsGeojson))

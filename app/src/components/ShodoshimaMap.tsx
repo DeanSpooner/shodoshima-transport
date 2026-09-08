@@ -35,6 +35,28 @@ type StopProperties = {
   zone_id: string;
 };
 
+// GTFS times are H:MM:SS, not zero-padded, so must be parsed rather than
+// string-compared.
+function timeToSeconds(time: string): number {
+  const [h, m, s] = time.split(':').map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
+// Departure times are local to Shodoshima, so "now" must be Japan time
+// regardless of the viewer's own timezone/device clock.
+function getJapanSecondsSinceMidnight(): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: string) =>
+    Number(parts.find(p => p.type === type)?.value ?? 0);
+  return get('hour') * 3600 + get('minute') * 60 + get('second');
+}
+
 // MapLibre's paint-property transitions don't animate feature-state driven
 // expressions, so the selected-stop highlight is tweened manually: a
 // 'progress' feature-state value is driven from 0 to 1 (or back) via
@@ -162,6 +184,10 @@ export function ShodoshimaMap() {
   const schedule = displayedStop
     ? (scheduleByStopId[displayedStop.props.stop_id] ?? [])
     : [];
+  const nowSeconds = getJapanSecondsSinceMidnight();
+  const nextDepartureIndex = schedule.findIndex(
+    s => timeToSeconds(s.departure_time) >= nowSeconds,
+  );
 
   return (
     <MapGL
@@ -300,39 +326,70 @@ export function ShodoshimaMap() {
           closeButton={false}
           closeOnClick={false}
           anchor='bottom'
+          // MapLibre defaults to maxWidth: '240px' as an inline style on the
+          // popup container, which CSS can't override. Without this the card
+          // stays 240px wide while its contents overflow outside the border.
+          maxWidth='none'
           className={isPopupClosing ? 'stop-popup-exit' : 'stop-popup-enter'}
         >
-          <div className='max-w-xs'>
-            <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1 mb-1'>
-              <h3 className='font-semibold text-sm text-olive-900'>
+          <div className='min-w-72'>
+            <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1.5 mb-1.5'>
+              <h3 className='font-semibold text-base text-olive-900'>
                 {displayedStop.props.stop_name}
               </h3>
               <button
                 type='button'
                 onClick={() => setSelectedStop(null)}
                 aria-label='Close'
-                className='shrink-0 text-olive-500 hover:text-olive-800 leading-none text-base'
+                className='shrink-0 flex items-center justify-center h-6 w-6 rounded text-olive-500 hover:text-olive-800 hover:bg-olive-200/70'
               >
-                &times;
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  className='h-4 w-4'
+                >
+                  <line x1='6' y1='6' x2='18' y2='18' />
+                  <line x1='18' y1='6' x2='6' y2='18' />
+                </svg>
               </button>
             </div>
             {schedule.length === 0 ? (
-              <p className='text-xs text-olive-600 mt-1'>
+              <p className='text-sm text-olive-600 mt-1'>
                 No scheduled departures
               </p>
             ) : (
-              <ul className='text-xs mt-1 space-y-0.5 max-h-40 overflow-y-auto'>
-                {schedule.map((s, i) => (
-                  <li
-                    key={`${s.trip_id}-${i}`}
-                    className='flex justify-between gap-2'
-                  >
-                    <span className='text-olive-900 font-medium'>
-                      {s.departure_time}
-                    </span>
-                    <span className='text-clay-600'>{s.headsign}</span>
-                  </li>
-                ))}
+              <ul className='stop-schedule-list text-sm mt-1 space-y-1 max-h-56 overflow-y-auto'>
+                {schedule.map((s, i) => {
+                  const isPast =
+                    nextDepartureIndex === -1 || i < nextDepartureIndex;
+                  const isNext = i === nextDepartureIndex;
+                  return (
+                    <li
+                      key={`${s.trip_id}-${i}`}
+                      className={`flex items-baseline justify-between whitespace-nowrap gap-x-5 rounded px-1.5 py-0.5 ${
+                        isNext ? 'stop-next-departure' : ''
+                      }`}
+                    >
+                      <span
+                        className={`font-medium tabular-nums shrink-0 ${
+                          isPast ? 'text-olive-400' : 'text-olive-900'
+                        }`}
+                      >
+                        {s.departure_time}
+                      </span>
+                      <span
+                        className={isPast ? 'text-olive-400' : 'text-clay-600'}
+                      >
+                        {s.headsign}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

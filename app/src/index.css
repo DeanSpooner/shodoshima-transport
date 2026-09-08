@@ -28,7 +28,7 @@ body,
   background: var(--color-olive-50);
   border: 1px solid var(--color-olive-300);
   border-radius: 0.5rem;
-  padding: 0.75rem;
+  padding: 1rem;
   box-shadow: 0 4px 14px rgba(38, 42, 25, 0.2);
   transform-origin: bottom center;
 }
@@ -126,4 +126,62 @@ body,
 .stop-popup-exit .maplibregl-popup-tip {
   animation: stop-popup-tip-pop-out 160ms ease-in both;
   pointer-events: none;
+}
+
+/* The next upcoming departure breathes gently so it draws the eye without
+   being distracting. */
+@keyframes stop-next-departure-pulse {
+  0%,
+  100% {
+    background-color: color-mix(
+      in srgb,
+      var(--color-olive-200) 55%,
+      transparent
+    );
+  }
+  50% {
+    background-color: color-mix(
+      in srgb,
+      var(--color-olive-200) 100%,
+      transparent
+    );
+  }
+}
+
+.stop-next-departure {
+  animation: stop-next-departure-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stop-next-departure {
+    animation: none;
+    background-color: color-mix(
+      in srgb,
+      var(--color-olive-200) 70%,
+      transparent
+    );
+  }
+}
+
+/* A slim, themed scrollbar that sits neatly inside the rounded popup
+   instead of a bulky default one crowding the schedule list. */
+.stop-schedule-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-olive-300) transparent;
+  /* Reserve the scrollbar's space so it never overlays the schedule text
+     (macOS overlay scrollbars otherwise sit on top of it). */
+  scrollbar-gutter: stable;
+}
+
+.stop-schedule-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stop-schedule-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stop-schedule-list::-webkit-scrollbar-thumb {
+  background: var(--color-olive-300);
+  border-radius: 3px;
 }
