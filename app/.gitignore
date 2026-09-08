@@ -16,6 +16,8 @@ dist-ssr
 # Generated from the ODPT GTFS feed at build time, not committed.
 src/data/*.geojson.json
 src/data/schedule.json
+src/data/shapes.json
+src/data/trips.json
 
 # Editor directories and files
 .vscode/*

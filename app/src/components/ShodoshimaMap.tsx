@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FeatureCollection, Point } from 'geojson';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import MapGL, {
@@ -12,6 +12,15 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import stopsGeojson from '../data/stops.geojson.json';
 import routesGeojson from '../data/routes.geojson.json';
 import { scheduleByStopId } from '../data/schedule';
+import { allRoutes } from '../data/routes';
+import { useBusPositions, type BusProperties } from '../lib/busPositions';
+import { BusRoster } from './BusRoster';
+import { RouteFilter } from './RouteFilter';
+import {
+  formatSeconds,
+  getJapanSecondsSinceMidnight,
+  timeToSeconds,
+} from '../lib/time';
 
 // Free vector basemap, no API key required. Voyager gives traditional map
 // colours (green parks, blue water, cream urban areas) rather than a
@@ -23,6 +32,7 @@ const MAP_STYLE =
 const ISLAND_CENTER = { longitude: 134.265, latitude: 34.49, zoom: 11.5 };
 
 const ZOOM_IN_OUT_POTENCY = 0.5;
+const FOLLOW_ZOOM = 13.5;
 const SELECT_ANIMATION_DURATION_MS = 200;
 const POPUP_EXIT_ANIMATION_DURATION_MS = 160;
 
@@ -34,28 +44,6 @@ type StopProperties = {
   stop_name: string;
   zone_id: string;
 };
-
-// GTFS times are H:MM:SS, not zero-padded, so must be parsed rather than
-// string-compared.
-function timeToSeconds(time: string): number {
-  const [h, m, s] = time.split(':').map(Number);
-  return h * 3600 + m * 60 + s;
-}
-
-// Departure times are local to Shodoshima, so "now" must be Japan time
-// regardless of the viewer's own timezone/device clock.
-function getJapanSecondsSinceMidnight(): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Tokyo',
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date());
-  const get = (type: string) =>
-    Number(parts.find(p => p.type === type)?.value ?? 0);
-  return get('hour') * 3600 + get('minute') * 60 + get('second');
-}
 
 // MapLibre's paint-property transitions don't animate feature-state driven
 // expressions, so the selected-stop highlight is tweened manually: a
@@ -102,6 +90,140 @@ export function ShodoshimaMap() {
     props: StopProperties;
     featureId: number;
   } | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [followedTripId, setFollowedTripId] = useState<string | null>(null);
+  const [enabledRouteIds, setEnabledRouteIds] = useState<Set<string>>(
+    () => new Set(allRoutes.map(r => r.route_id)),
+  );
+  const isPointerDownRef = useRef(false);
+
+  // jumpTo calls map.stop() internally, which aborts whatever interaction is
+  // in flight. Re-centring 60 times a second would therefore kill a drag the
+  // instant it began, and the gesture would collapse into a click. Tracking
+  // the pointer lets the follow loop stand down while the user is touching
+  // the map. Capture phase and window scope so a release outside still counts.
+  useEffect(() => {
+    const down = () => (isPointerDownRef.current = true);
+    const up = () => (isPointerDownRef.current = false);
+
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    return () => {
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+    };
+  }, []);
+
+  const allBusFeatures = useBusPositions();
+  // Bus positions are recomputed every animation frame, but the schedule-driven
+  // parts of the UI only ever change on a whole second. Flooring keeps their
+  // memos from re-running 60 times a second for an identical result.
+  const nowSeconds = Math.floor(getJapanSecondsSinceMidnight());
+
+  const visibleBuses = useMemo(
+    () =>
+      allBusFeatures.features.filter(f =>
+        enabledRouteIds.has(f.properties.route_id),
+      ),
+    [allBusFeatures, enabledRouteIds],
+  );
+
+  const busFeatures = useMemo(
+    () => ({ type: 'FeatureCollection' as const, features: visibleBuses }),
+    [visibleBuses],
+  );
+
+  // A stop is dimmed once nothing more will call there today, or when every
+  // route serving it has been filtered out. Memoising via a joined key keeps
+  // the array identity stable between ticks, so MapLibre isn't handed a
+  // "new" paint expression once a second.
+  const inactiveStopIdsKey = useMemo(() => {
+    const inactive: string[] = [];
+    for (const feature of stopsGeojson.features) {
+      const stopId = (feature.properties as StopProperties).stop_id;
+      const hasUpcoming = (scheduleByStopId[stopId] ?? []).some(
+        entry =>
+          enabledRouteIds.has(entry.route_id) &&
+          timeToSeconds(entry.departure_time) >= nowSeconds,
+      );
+      if (!hasUpcoming) inactive.push(stopId);
+    }
+    return inactive.join(',');
+  }, [enabledRouteIds, nowSeconds]);
+
+  const stableInactiveStopIds = useMemo(
+    () => (inactiveStopIdsKey ? inactiveStopIdsKey.split(',') : []),
+    [inactiveStopIdsKey],
+  );
+
+  const enabledRouteIdList = useMemo(
+    () => [...enabledRouteIds],
+    [enabledRouteIds],
+  );
+
+  // Tracked by trip_id rather than by captured coordinates so the popup
+  // follows the bus as it moves, and closes itself once the trip finishes or
+  // its route is filtered out.
+  const selectedBus =
+    visibleBuses.find(f => f.properties.trip_id === selectedTripId) ?? null;
+
+  function onToggleRoute(routeId: string) {
+    setEnabledRouteIds(current => {
+      const next = new Set(current);
+      if (next.has(routeId)) next.delete(routeId);
+      else next.add(routeId);
+      return next;
+    });
+  }
+
+  // Shared by the roster and by clicking a bus on the map, so both do the same
+  // thing. Only ever zooms in, never out, so following from an already close
+  // view doesn't yank the map backwards.
+  function followBus(tripId: string) {
+    const bus = visibleBuses.find(f => f.properties.trip_id === tripId);
+    if (!bus) return;
+
+    setSelectedStop(null);
+    setSelectedTripId(tripId);
+    setFollowedTripId(tripId);
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.flyTo({
+      center: bus.geometry.coordinates as [number, number],
+      zoom: Math.max(map.getZoom(), FOLLOW_ZOOM),
+      duration: 1200,
+    });
+  }
+
+  // Derived rather than stored, so a followed trip ending (or being filtered
+  // out) simply stops resolving instead of needing a state reset.
+  const followedBus = followedTripId
+    ? (visibleBuses.find(f => f.properties.trip_id === followedTripId) ?? null)
+    : null;
+
+  // Keeps the followed bus centred as it moves. The position itself is now
+  // recomputed per frame, so jumping straight to it each frame is already
+  // smooth - easing here would mean restarting an animation every frame and
+  // perpetually chasing a target it never reaches.
+  useEffect(() => {
+    if (!followedBus) return;
+
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    // Stand down while the user is touching the map, or while a camera
+    // animation is in flight (the initial fly-in, or a zoom they just asked
+    // for) - jumpTo would abort either one.
+    if (isPointerDownRef.current || map.isMoving()) return;
+
+    map.jumpTo({
+      center: followedBus.geometry.coordinates as [number, number],
+    });
+  }, [followedBus]);
 
   // The popup animates out before unmounting, so what's rendered can lag
   // behind selectedStop by one exit-animation duration when closing.
@@ -143,7 +265,10 @@ export function ShodoshimaMap() {
     prevFeatureIdRef.current = nextFeatureId;
   }, [selectedStop]);
 
+  // Recentring is an explicit "take me back to the island", so it gives up
+  // following. Zooming only changes how closely you're watching, so it doesn't.
   function onRecenter() {
+    setFollowedTripId(null);
     mapRef.current?.flyTo({
       center: [ISLAND_CENTER.longitude, ISLAND_CENTER.latitude],
       zoom: ISLAND_CENTER.zoom,
@@ -163,28 +288,43 @@ export function ShodoshimaMap() {
   }
 
   function onClick(e: MapLayerMouseEvent) {
-    const feature = e.features?.[0];
-    if (
-      !feature ||
-      feature.layer?.id !== 'stops-circle' ||
-      feature.id === undefined
-    ) {
+    // Look each layer up by id rather than trusting e.features[0]: a bus dot
+    // sitting on top of a stop would otherwise be returned first and make the
+    // stop underneath unclickable.
+    const busFeature = e.features?.find(f => f.layer?.id === 'buses-circle');
+    const stopFeature = e.features?.find(f => f.layer?.id === 'stops-circle');
+
+    // Buses draw above stops and are smaller, so hitting one is deliberate.
+    // Clicking one starts following it, exactly as picking it from the roster
+    // does.
+    const clickedTripId = (busFeature?.properties as BusProperties | undefined)
+      ?.trip_id;
+    if (clickedTripId) {
+      followBus(clickedTripId);
+      return;
+    }
+
+    // Clicking anywhere else is a deliberate move of attention.
+    setFollowedTripId(null);
+    setSelectedTripId(null);
+
+    if (!stopFeature || stopFeature.id === undefined) {
       setSelectedStop(null);
       return;
     }
-    const [lon, lat] = (feature.geometry as Point).coordinates;
+
+    const [lon, lat] = (stopFeature.geometry as Point).coordinates;
     setSelectedStop({
       lon,
       lat,
-      props: feature.properties as StopProperties,
-      featureId: feature.id as number,
+      props: stopFeature.properties as StopProperties,
+      featureId: stopFeature.id as number,
     });
   }
 
   const schedule = displayedStop
     ? (scheduleByStopId[displayedStop.props.stop_id] ?? [])
     : [];
-  const nowSeconds = getJapanSecondsSinceMidnight();
   const nextDepartureIndex = schedule.findIndex(
     s => timeToSeconds(s.departure_time) >= nowSeconds,
   );
@@ -195,8 +335,13 @@ export function ShodoshimaMap() {
       initialViewState={ISLAND_CENTER}
       style={{ width: '100%', height: '100%' }}
       mapStyle={MAP_STYLE}
-      interactiveLayerIds={['stops-circle']}
+      interactiveLayerIds={['stops-circle', 'buses-circle']}
       onClick={onClick}
+      // Dragging is the user deliberately looking somewhere else, so it gives
+      // up following. Zooming isn't - it's looking at the same bus more or
+      // less closely - so it's deliberately not handled here. Programmatic
+      // camera moves don't raise dragstart, so the follow can't cancel itself.
+      onDragStart={() => setFollowedTripId(null)}
     >
       <div className='absolute bottom-3 left-3 z-10 flex flex-col gap-2'>
         <button
@@ -273,13 +418,34 @@ export function ShodoshimaMap() {
         type='geojson'
         data={routesGeojson as FeatureCollection}
       >
+        {/* Filtered-out routes are a separate layer drawn first, so that where
+            routes share a road the active one is always on top. A single
+            layer would let a greyed shape bury an active one, depending on
+            feature order. */}
+        <Layer
+          id='routes-line-inactive'
+          type='line'
+          filter={[
+            '!',
+            ['in', ['get', 'route_id'], ['literal', enabledRouteIdList]],
+          ]}
+          paint={{
+            'line-color': '#c4c2b8',
+            'line-width': 2.5,
+            'line-opacity': 1,
+          }}
+        />
         <Layer
           id='routes-line'
           type='line'
+          filter={['in', ['get', 'route_id'], ['literal', enabledRouteIdList]]}
           paint={{
             'line-color': '#626b3c',
-            'line-width': 3,
-            'line-opacity': 0.8,
+            // Opaque so the two directions of a corridor, which are separate
+            // overlapping shapes, don't composite into a darker line than
+            // single-coverage stretches.
+            'line-width': 2.5,
+            'line-opacity': 1,
           }}
         />
       </Source>
@@ -304,14 +470,36 @@ export function ShodoshimaMap() {
               8,
             ],
             'circle-color': [
-              'interpolate',
-              ['linear'],
-              ['coalesce', ['feature-state', 'progress'], 0],
-              0,
-              '#bf6a3d',
-              1,
-              '#4c5430',
+              'case',
+              // Dimmed when nothing more calls here today, or when every route
+              // serving it is filtered out.
+              ['in', ['get', 'stop_id'], ['literal', stableInactiveStopIds]],
+              '#c4c2b8',
+              [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['feature-state', 'progress'], 0],
+                0,
+                '#bf6a3d',
+                1,
+                '#4c5430',
+              ],
             ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#f6f4e8',
+          }}
+        />
+      </Source>
+
+      {/* Declared after stops so buses draw on top of them. No generateId:
+          feature ids are meaningless on a source replaced every second. */}
+      <Source id='buses' type='geojson' data={busFeatures}>
+        <Layer
+          id='buses-circle'
+          type='circle'
+          paint={{
+            'circle-radius': 5,
+            'circle-color': '#2226ff',
             'circle-stroke-width': 2,
             'circle-stroke-color': '#f6f4e8',
           }}
@@ -395,6 +583,89 @@ export function ShodoshimaMap() {
           </div>
         </Popup>
       )}
+
+      {selectedBus && (
+        <Popup
+          longitude={selectedBus.geometry.coordinates[0]}
+          latitude={selectedBus.geometry.coordinates[1]}
+          onClose={() => setSelectedTripId(null)}
+          closeButton={false}
+          closeOnClick={false}
+          anchor='bottom'
+          maxWidth='none'
+          className='stop-popup-enter'
+        >
+          <div className='min-w-56'>
+            <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1.5 mb-1.5'>
+              <h3 className='font-semibold text-base text-olive-900'>
+                {selectedBus.properties.headsign}
+              </h3>
+              <button
+                type='button'
+                onClick={() => setSelectedTripId(null)}
+                aria-label='Close'
+                className='shrink-0 flex items-center justify-center h-6 w-6 rounded text-olive-500 hover:text-olive-800 hover:bg-olive-200/70'
+              >
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  className='h-4 w-4'
+                >
+                  <line x1='6' y1='6' x2='18' y2='18' />
+                  <line x1='18' y1='6' x2='6' y2='18' />
+                </svg>
+              </button>
+            </div>
+            <dl className='text-sm space-y-1'>
+              <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
+                <dt className='text-olive-600'>Route</dt>
+                <dd className='text-olive-900 font-medium'>
+                  {selectedBus.properties.origin_name}
+                  <span aria-hidden='true' className='mx-1 text-olive-900'>
+                    &rarr;
+                  </span>
+                  {selectedBus.properties.destination_name}
+                </dd>
+              </div>
+              <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
+                <dt className='text-olive-600'>Next stop</dt>
+                <dd className='text-olive-900 font-medium'>
+                  {selectedBus.properties.next_stop_name}
+                </dd>
+              </div>
+              <div className='flex items-baseline justify-between gap-x-5 whitespace-nowrap'>
+                <dt className='text-olive-600'>Arrives</dt>
+                <dd className='text-olive-900 font-medium tabular-nums'>
+                  {formatSeconds(selectedBus.properties.next_stop_time)}
+                </dd>
+              </div>
+            </dl>
+            <p className='text-xs text-olive-500 mt-2 pt-1.5 border-t border-olive-200'>
+              Simulated from the timetable, not live tracking
+            </p>
+          </div>
+        </Popup>
+      )}
+
+      {/* Side by side rather than stacked: stacked, the upper control's
+          dropdown opened underneath the lower one. */}
+      <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
+        <BusRoster
+          buses={visibleBuses}
+          followedTripId={followedTripId}
+          onSelectBus={followBus}
+        />
+        <RouteFilter
+          routes={allRoutes}
+          enabledRouteIds={enabledRouteIds}
+          onToggleRoute={onToggleRoute}
+        />
+      </div>
     </MapGL>
   );
 }
