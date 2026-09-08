@@ -1,2 +1,0 @@
-﻿office_id,office_name,office_phone
-1,株式会社かんかけタクシー,0879-82-2288

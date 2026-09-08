@@ -1,4 +1,0 @@
-﻿service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
-毎日,1,1,1,1,1,1,1,20220401,20230331
-夏会期,1,1,1,1,1,1,1,20220805,20220904
-秋会期,1,1,1,1,1,1,1,20220929,20221106

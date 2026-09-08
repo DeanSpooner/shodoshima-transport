@@ -1,2 +1,0 @@
-﻿route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color
-1,3000020373249,三都西,町営バス三都西線,3,0070C0,FFFFFF

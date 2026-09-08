@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FeatureCollection, Point } from 'geojson';
-import Map, {
+import type { Map as MapLibreMap } from 'maplibre-gl';
+import MapGL, {
   Source,
   Layer,
   Popup,
@@ -12,17 +13,21 @@ import stopsGeojson from '../data/stops.geojson.json';
 import routesGeojson from '../data/routes.geojson.json';
 import { scheduleByStopId } from '../data/schedule';
 
-// Free vector basemap, no API key required. Swap for a self-hosted Protomaps
-// style (https://docs.protomaps.com) if you want a fully self-hosted stack.
+// Free vector basemap, no API key required. Voyager gives traditional map
+// colours (green parks, blue water, cream urban areas) rather than a
+// monochrome style. Swap for a self-hosted Protomaps style
+// (https://docs.protomaps.com) if you want a fully self-hosted stack.
 const MAP_STYLE =
-  'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+  'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 
 const ISLAND_CENTER = { longitude: 134.265, latitude: 34.49, zoom: 11.5 };
 
 const ZOOM_IN_OUT_POTENCY = 0.5;
+const SELECT_ANIMATION_DURATION_MS = 200;
+const POPUP_EXIT_ANIMATION_DURATION_MS = 160;
 
 const MAP_CONTROL_BUTTON_CLASSES =
-  'flex h-9 w-9 items-center justify-center rounded-md bg-blue-300 text-slate-800 shadow-md transition-colors duration-200 hover:bg-blue-400';
+  'flex h-9 w-9 items-center justify-center rounded-md bg-olive-100 text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-200';
 
 type StopProperties = {
   stop_id: string;
@@ -30,13 +35,91 @@ type StopProperties = {
   zone_id: string;
 };
 
+// MapLibre's paint-property transitions don't animate feature-state driven
+// expressions, so the selected-stop highlight is tweened manually: a
+// 'progress' feature-state value is driven from 0 to 1 (or back) via
+// requestAnimationFrame, and the paint expression interpolates on it.
+function animateStopProgress(
+  map: MapLibreMap,
+  activeAnimations: Map<number, number>,
+  featureId: number,
+  to: number,
+) {
+  const existingRaf = activeAnimations.get(featureId);
+  if (existingRaf !== undefined) cancelAnimationFrame(existingRaf);
+
+  const state = map.getFeatureState({ source: 'stops', id: featureId });
+  const from = typeof state.progress === 'number' ? state.progress : 1 - to;
+  const start = performance.now();
+
+  function tick(now: number) {
+    const t = Math.min((now - start) / SELECT_ANIMATION_DURATION_MS, 1);
+    const eased = 1 - (1 - t) * (1 - t);
+    map.setFeatureState(
+      { source: 'stops', id: featureId },
+      { progress: from + (to - from) * eased },
+    );
+
+    if (t < 1) {
+      activeAnimations.set(featureId, requestAnimationFrame(tick));
+    } else {
+      activeAnimations.delete(featureId);
+    }
+  }
+
+  activeAnimations.set(featureId, requestAnimationFrame(tick));
+}
+
 export function ShodoshimaMap() {
   const mapRef = useRef<MapRef>(null);
+  const activeAnimationsRef = useRef(new Map<number, number>());
+  const prevFeatureIdRef = useRef<number | null>(null);
   const [selectedStop, setSelectedStop] = useState<{
     lon: number;
     lat: number;
     props: StopProperties;
+    featureId: number;
   } | null>(null);
+
+  // The popup animates out before unmounting, so what's rendered can lag
+  // behind selectedStop by one exit-animation duration when closing.
+  const [displayedStop, setDisplayedStop] = useState(selectedStop);
+  const [isPopupClosing, setIsPopupClosing] = useState(false);
+  const popupCloseTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    clearTimeout(popupCloseTimeoutRef.current);
+
+    if (selectedStop) {
+      setDisplayedStop(selectedStop);
+      setIsPopupClosing(false);
+      return;
+    }
+
+    if (displayedStop) {
+      setIsPopupClosing(true);
+      popupCloseTimeoutRef.current = window.setTimeout(() => {
+        setDisplayedStop(null);
+        setIsPopupClosing(false);
+      }, POPUP_EXIT_ANIMATION_DURATION_MS);
+    }
+  }, [selectedStop]);
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    const prevFeatureId = prevFeatureIdRef.current;
+    const nextFeatureId = selectedStop?.featureId ?? null;
+
+    if (prevFeatureId !== null && prevFeatureId !== nextFeatureId) {
+      animateStopProgress(map, activeAnimationsRef.current, prevFeatureId, 0);
+    }
+    if (nextFeatureId !== null) {
+      animateStopProgress(map, activeAnimationsRef.current, nextFeatureId, 1);
+    }
+    prevFeatureIdRef.current = nextFeatureId;
+  }, [selectedStop]);
 
   function onRecenter() {
     mapRef.current?.flyTo({
@@ -59,20 +142,29 @@ export function ShodoshimaMap() {
 
   function onClick(e: MapLayerMouseEvent) {
     const feature = e.features?.[0];
-    if (!feature || feature.layer?.id !== 'stops-circle') {
+    if (
+      !feature ||
+      feature.layer?.id !== 'stops-circle' ||
+      feature.id === undefined
+    ) {
       setSelectedStop(null);
       return;
     }
     const [lon, lat] = (feature.geometry as Point).coordinates;
-    setSelectedStop({ lon, lat, props: feature.properties as StopProperties });
+    setSelectedStop({
+      lon,
+      lat,
+      props: feature.properties as StopProperties,
+      featureId: feature.id as number,
+    });
   }
 
-  const schedule = selectedStop
-    ? (scheduleByStopId[selectedStop.props.stop_id] ?? [])
+  const schedule = displayedStop
+    ? (scheduleByStopId[displayedStop.props.stop_id] ?? [])
     : [];
 
   return (
-    <Map
+    <MapGL
       ref={mapRef}
       initialViewState={ISLAND_CENTER}
       style={{ width: '100%', height: '100%' }}
@@ -159,9 +251,9 @@ export function ShodoshimaMap() {
           id='routes-line'
           type='line'
           paint={{
-            'line-color': '#2563eb',
+            'line-color': '#626b3c',
             'line-width': 3,
-            'line-opacity': 0.7,
+            'line-opacity': 0.8,
           }}
         />
       </Source>
@@ -170,33 +262,62 @@ export function ShodoshimaMap() {
         id='stops'
         type='geojson'
         data={stopsGeojson as FeatureCollection}
+        generateId
       >
         <Layer
           id='stops-circle'
           type='circle'
           paint={{
-            'circle-radius': 6,
-            'circle-color': '#dc2626',
+            'circle-radius': [
+              'interpolate',
+              ['linear'],
+              ['coalesce', ['feature-state', 'progress'], 0],
+              0,
+              6,
+              1,
+              8,
+            ],
+            'circle-color': [
+              'interpolate',
+              ['linear'],
+              ['coalesce', ['feature-state', 'progress'], 0],
+              0,
+              '#bf6a3d',
+              1,
+              '#4c5430',
+            ],
             'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
+            'circle-stroke-color': '#f6f4e8',
           }}
         />
       </Source>
 
-      {selectedStop && (
+      {displayedStop && (
         <Popup
-          longitude={selectedStop.lon}
-          latitude={selectedStop.lat}
+          longitude={displayedStop.lon}
+          latitude={displayedStop.lat}
           onClose={() => setSelectedStop(null)}
+          closeButton={false}
           closeOnClick={false}
           anchor='bottom'
+          className={isPopupClosing ? 'stop-popup-exit' : 'stop-popup-enter'}
         >
           <div className='max-w-xs'>
-            <h3 className='font-semibold text-sm'>
-              {selectedStop.props.stop_name}
-            </h3>
+            <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1 mb-1'>
+              <h3 className='font-semibold text-sm text-olive-900'>
+                {displayedStop.props.stop_name}
+              </h3>
+              <button
+                type='button'
+                onClick={() => setSelectedStop(null)}
+                aria-label='Close'
+                className='shrink-0 text-olive-500 hover:text-olive-800 leading-none text-base'
+              >
+                &times;
+              </button>
+            </div>
             {schedule.length === 0 ? (
-              <p className='text-xs text-gray-500 mt-1'>
+              <p className='text-xs text-olive-600 mt-1'>
                 No scheduled departures
               </p>
             ) : (
@@ -206,8 +327,10 @@ export function ShodoshimaMap() {
                     key={`${s.trip_id}-${i}`}
                     className='flex justify-between gap-2'
                   >
-                    <span>{s.departure_time}</span>
-                    <span className='text-gray-500'>{s.headsign}</span>
+                    <span className='text-olive-900 font-medium'>
+                      {s.departure_time}
+                    </span>
+                    <span className='text-clay-600'>{s.headsign}</span>
                   </li>
                 ))}
               </ul>
@@ -215,6 +338,6 @@ export function ShodoshimaMap() {
           </div>
         </Popup>
       )}
-    </Map>
+    </MapGL>
   );
 }

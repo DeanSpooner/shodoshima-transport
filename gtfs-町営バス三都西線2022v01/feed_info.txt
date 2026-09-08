@@ -1,2 +1,0 @@
-﻿feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version
-小豆島町,https://www.town.shodoshima.lg.jp/,ja,20220101,20250331,2022v01-2021年12月22日 08時45分35秒-西沢ツールver8.11

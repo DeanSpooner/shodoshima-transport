@@ -9,8 +9,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:gtfs": "node scripts/build-gtfs.mjs",
-    "predev": "node scripts/build-gtfs.mjs",
-    "prebuild": "node scripts/build-gtfs.mjs"
+    "fetch:gtfs": "tsx --env-file-if-exists=.env scripts/fetch-gtfs.ts",
+    "data:refresh": "npm run fetch:gtfs && npm run build:gtfs",
+    "predev": "npm run data:refresh",
+    "prebuild": "npm run data:refresh"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -27,10 +29,13 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/unzipper": "^0.10.11",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
     "papaparse": "^5.7.0",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
+    "unzipper": "^0.12.5",
     "vite": "^8.2.2"
   }
 }

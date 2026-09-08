@@ -1,1 +1,5 @@
 .DS_Store
+
+# Raw GTFS data is fetched from the ODPT API at build time, not committed.
+/data-1/
+/gtfs-*/

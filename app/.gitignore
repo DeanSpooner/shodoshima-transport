@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+
+# Generated from the ODPT GTFS feed at build time, not committed.
+src/data/*.geojson.json
+src/data/schedule.json
 
 # Editor directories and files
 .vscode/*

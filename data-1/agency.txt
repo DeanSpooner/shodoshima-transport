@@ -1,2 +1,0 @@
-﻿agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone
-3000020373249,小豆島町営バス,https://www.town.shodoshima.lg.jp/gyousei/kakuka/kikakuzaisei/1/rosenbasu/index.html,Asia/Tokyo,ja,0879-82-7000

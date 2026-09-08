@@ -1,8 +1,77 @@
 @import "tailwindcss";
 
+@theme {
+  /* Olive-grove palette: Shodoshima is Japan's leading olive producer */
+  --color-olive-50: #f6f4e8;
+  --color-olive-100: #eae5c9;
+  --color-olive-200: #d3cd9c;
+  --color-olive-300: #b3ae72;
+  --color-olive-500: #7c8452;
+  --color-olive-600: #626b3c;
+  --color-olive-700: #4c5430;
+  --color-olive-800: #3a4025;
+  --color-olive-900: #262a19;
+  --color-clay-500: #bf6a3d;
+  --color-clay-600: #a5572e;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+.maplibregl-popup-content {
+  background: var(--color-olive-50);
+  border: 1px solid var(--color-olive-300);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 4px 14px rgba(38, 42, 25, 0.2);
+  transform-origin: bottom center;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--color-olive-300);
+  transform-origin: top center;
+}
+
+/* Popup pops out of / back into the selected stop's marker. Scale is
+   animated on the content/tip (not the outer .maplibregl-popup element)
+   because MapLibre drives that element's own transform for positioning. */
+@keyframes stop-popup-pop-in {
+  0% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes stop-popup-pop-out {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+}
+
+.stop-popup-enter .maplibregl-popup-content,
+.stop-popup-enter .maplibregl-popup-tip {
+  animation: stop-popup-pop-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.stop-popup-exit .maplibregl-popup-content,
+.stop-popup-exit .maplibregl-popup-tip {
+  animation: stop-popup-pop-out 160ms ease-in both;
+  pointer-events: none;
 }
