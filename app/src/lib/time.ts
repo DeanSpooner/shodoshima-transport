@@ -12,6 +12,15 @@ export function formatSeconds(total: number): string {
   return `${h}:${String(m).padStart(2, '0')}`;
 }
 
+/** Zero-padded 24-hour HH:MM:SS, for the clock rather than the timetables. */
+export function formatClock(total: number): string {
+  const whole = Math.floor(total);
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const s = whole % 60;
+  return [h, m, s].map(part => String(part).padStart(2, '0')).join(':');
+}
+
 const SECONDS_PER_DAY = 86400;
 
 function parseClockOverrideParam(): number | null {

@@ -36,7 +36,7 @@ export function RouteFilter({
         type='button'
         onClick={() => setIsOpen(open => !open)}
         aria-expanded={isOpen}
-        className='flex items-center gap-1.5 rounded-md bg-olive-100 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-200'
+        className='flex items-center gap-1.5 rounded-md bg-olive-50 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100'
       >
         {hiddenCount === 0
           ? t.allRoutes

@@ -1,5 +1,6 @@
 import { ShodoshimaMap } from './components/ShodoshimaMap';
 import { LanguageToggle } from './components/LanguageToggle';
+import { Clock } from './components/Clock';
 import { LanguageProvider } from './components/LanguageProvider';
 import { useLanguage } from './lib/i18n';
 
@@ -16,14 +17,7 @@ function AppShell() {
         />
         {t.appTitle}
         <div className='ml-auto flex items-center gap-3'>
-          <a
-            href='https://github.com/DeanSpooner'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-xs font-normal text-olive-200 transition-colors duration-200 hover:text-olive-50 hover:underline'
-          >
-            {t.builtBy}
-          </a>
+          <Clock />
           <LanguageToggle />
         </div>
       </header>

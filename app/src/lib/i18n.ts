@@ -7,6 +7,10 @@ export const STORAGE_KEY = 'shodoshima:language';
 type Strings = {
   appTitle: string;
   builtBy: string;
+  searchPlaceholder: string;
+  searchNoResults: string;
+  clearSearch: string;
+  japanTime: string;
   languageLabel: string;
   /** Describes what the toggle will do, for screen readers. */
   switchLanguage: string;
@@ -16,6 +20,10 @@ type Strings = {
   close: string;
   noDepartures: string;
   route: string;
+  departs: string;
+  boundForLabel: string;
+  /** Japanese puts the destination first: '〇〇行き'. */
+  boundFor: (destination: string) => string;
   nextStop: string;
   arrives: string;
   simulatedNote: string;
@@ -31,6 +39,10 @@ export const STRINGS: Record<Language, Strings> = {
   en: {
     appTitle: 'Shodoshima Bus Routes',
     builtBy: 'Built by Dean Spooner',
+    searchPlaceholder: 'Search stops',
+    searchNoResults: 'No matching stops',
+    clearSearch: 'Clear search',
+    japanTime: 'JST',
     languageLabel: 'Language',
     switchLanguage: 'Switch to Japanese',
     zoomIn: 'Zoom in',
@@ -39,6 +51,9 @@ export const STRINGS: Record<Language, Strings> = {
     close: 'Close',
     noDepartures: 'No scheduled departures',
     route: 'Route',
+    departs: 'Departs',
+    boundForLabel: 'Bound for',
+    boundFor: destination => `Bound for ${destination}`,
     nextStop: 'Next stop',
     arrives: 'Arrives',
     simulatedNote: 'Simulated from the timetable, not live tracking',
@@ -50,6 +65,10 @@ export const STRINGS: Record<Language, Strings> = {
   ja: {
     appTitle: '小豆島バス路線',
     builtBy: '制作: Dean Spooner',
+    searchPlaceholder: '停留所を検索',
+    searchNoResults: '該当する停留所はありません',
+    clearSearch: '検索をクリア',
+    japanTime: '日本時間',
     languageLabel: '言語',
     switchLanguage: '英語に切り替える',
     zoomIn: '拡大',
@@ -58,6 +77,9 @@ export const STRINGS: Record<Language, Strings> = {
     close: '閉じる',
     noDepartures: '発車予定はありません',
     route: '路線',
+    departs: '発車',
+    boundForLabel: '行き先',
+    boundFor: destination => `${destination}行き`,
     nextStop: '次の停留所',
     arrives: '到着',
     simulatedNote: '時刻表に基づくシミュレーションです（実際の運行情報ではありません）',

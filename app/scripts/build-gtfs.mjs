@@ -96,6 +96,14 @@ for (const row of translations) {
   if (row.language !== 'en' || !row.field_value || !row.translation) continue
   englishByJapanese.set(row.field_value, titleCaseRomaji(row.translation))
 }
+
+// Kana readings, so search can match what a Japanese IME produces before the
+// user converts it to kanji.
+const kanaByJapanese = new Map()
+for (const row of translations) {
+  if (row.language !== 'ja-Hrkt' || !row.field_value || !row.translation) continue
+  kanaByJapanese.set(row.field_value, row.translation)
+}
 // Applied after the feed, so both fill gaps and override.
 for (const [japanese, english] of [
   ...Object.entries(MISSING_TRANSLATIONS),
@@ -121,6 +129,7 @@ const stopsGeojson = {
       stop_id: s.stop_id,
       stop_name: s.stop_name,
       stop_name_en: toEnglish(s.stop_name),
+      stop_name_kana: kanaByJapanese.get(s.stop_name) ?? '',
       zone_id: s.zone_id,
     },
   })),

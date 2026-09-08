@@ -17,6 +17,7 @@ import { useBusPositions, type BusProperties } from '../lib/busPositions';
 import { localisedName, useLanguage } from '../lib/i18n';
 import { BusRoster } from './BusRoster';
 import { RouteFilter } from './RouteFilter';
+import { StopSearch, type StopSearchResult } from './StopSearch';
 import {
   formatSeconds,
   getJapanSecondsSinceMidnight,
@@ -34,11 +35,12 @@ const ISLAND_CENTER = { longitude: 134.265, latitude: 34.49, zoom: 11.5 };
 
 const ZOOM_IN_OUT_POTENCY = 0.5;
 const FOLLOW_ZOOM = 13.5;
+const STOP_SEARCH_ZOOM = 14;
 const SELECT_ANIMATION_DURATION_MS = 200;
 const POPUP_EXIT_ANIMATION_DURATION_MS = 160;
 
 const MAP_CONTROL_BUTTON_CLASSES =
-  'flex h-9 w-9 items-center justify-center rounded-md bg-olive-100 text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-200';
+  'flex h-9 w-9 items-center justify-center rounded-md bg-olive-50 text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100';
 
 type StopProperties = {
   stop_id: string;
@@ -202,6 +204,32 @@ export function ShodoshimaMap() {
     });
   }
 
+  // Search results behave like clicking the stop: fly in, select it (which
+  // runs the marker highlight) and open its timetable.
+  function onSelectSearchResult(result: StopSearchResult) {
+    setSelectedTripId(null);
+    setFollowedTripId(null);
+    setSelectedStop({
+      lon: result.lon,
+      lat: result.lat,
+      featureId: result.featureId,
+      props: {
+        stop_id: result.stopId,
+        stop_name: result.nameJa,
+        stop_name_en: result.nameEn,
+        zone_id: '',
+      },
+    });
+
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo({
+      center: [result.lon, result.lat],
+      zoom: Math.max(map.getZoom(), STOP_SEARCH_ZOOM),
+      duration: 1200,
+    });
+  }
+
   // Derived rather than stored, so a followed trip ending (or being filtered
   // out) simply stops resolving instead of needing a state reset.
   const followedBus = followedTripId
@@ -346,6 +374,21 @@ export function ShodoshimaMap() {
       // camera moves don't raise dragstart, so the follow can't cancel itself.
       onDragStart={() => setFollowedTripId(null)}
     >
+      <div className='absolute top-3 left-3 z-10'>
+        <StopSearch onSelectStop={onSelectSearchResult} />
+      </div>
+
+      {/* Sits clear of MapLibre's attribution bar, which occupies the bottom
+          ~44px of the map's right-hand side. */}
+      <a
+        href='https://github.com/DeanSpooner'
+        target='_blank'
+        rel='noopener noreferrer'
+        className='absolute bottom-12 right-3 z-10 rounded-md bg-olive-50 px-2 py-1 text-xs text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100'
+      >
+        {t.builtBy}
+      </a>
+
       <div className='absolute bottom-3 left-3 z-10 flex flex-col gap-2'>
         <button
           type='button'
@@ -558,7 +601,12 @@ export function ShodoshimaMap() {
                 {t.noDepartures}
               </p>
             ) : (
-              <ul className='stop-schedule-list text-sm mt-1 space-y-1 max-h-56 overflow-y-auto'>
+              <>
+                <div className='flex items-baseline justify-between gap-x-5 px-1.5 text-xs uppercase tracking-wide text-olive-500'>
+                  <span>{t.departs}</span>
+                  <span>{t.boundForLabel}</span>
+                </div>
+                <ul className='stop-schedule-list text-sm mt-1 space-y-1 max-h-56 overflow-y-auto'>
                 {schedule.map((s, i) => {
                   const isPast =
                     nextDepartureIndex === -1 || i < nextDepartureIndex;
@@ -585,7 +633,8 @@ export function ShodoshimaMap() {
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </>
             )}
           </div>
         </Popup>
@@ -605,10 +654,12 @@ export function ShodoshimaMap() {
           <div className='min-w-56'>
             <div className='flex items-start justify-between gap-2 border-b border-olive-200 pb-1.5 mb-1.5'>
               <h3 className='font-semibold text-base text-olive-900'>
-                {localisedName(
-                  language,
-                  selectedBus.properties.headsign,
-                  selectedBus.properties.headsign_en,
+                {t.boundFor(
+                  localisedName(
+                    language,
+                    selectedBus.properties.destination_name,
+                    selectedBus.properties.destination_name_en,
+                  ),
                 )}
               </h3>
               <button

@@ -51,7 +51,7 @@ export function BusRoster({
         disabled={buses.length === 0}
         aria-expanded={isOpen}
         aria-haspopup='listbox'
-        className='flex items-center gap-1.5 rounded-md bg-olive-100 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 enabled:hover:bg-olive-200 disabled:cursor-default'
+        className='flex items-center gap-1.5 rounded-md bg-olive-50 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 enabled:hover:bg-olive-100 disabled:cursor-default'
       >
         {label}
         {buses.length > 0 && (
