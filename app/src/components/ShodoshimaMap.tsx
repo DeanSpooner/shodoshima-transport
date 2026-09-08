@@ -18,6 +18,9 @@ import { localisedName, useLanguage } from '../lib/i18n';
 import { BusRoster } from './BusRoster';
 import { RouteFilter } from './RouteFilter';
 import { StopSearch, type StopSearchResult } from './StopSearch';
+import { MobileMenu } from './MobileMenu';
+import { LanguageToggle } from './LanguageToggle';
+import { useIsMobile } from '../lib/useIsMobile';
 import {
   formatSeconds,
   getJapanSecondsSinceMidnight,
@@ -32,6 +35,9 @@ const MAP_STYLE =
   'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
 
 const ISLAND_CENTER = { longitude: 134.265, latitude: 34.49, zoom: 11.5 };
+// Three of the 0.5-unit zoom steps further out, so the whole island still
+// fits on a phone-width viewport.
+const ISLAND_ZOOM_MOBILE = ISLAND_CENTER.zoom - 1.5;
 
 const ZOOM_IN_OUT_POTENCY = 0.5;
 const FOLLOW_ZOOM = 13.5;
@@ -84,7 +90,13 @@ function animateStopProgress(
   activeAnimations.set(featureId, requestAnimationFrame(tick));
 }
 
-export function ShodoshimaMap() {
+type ShodoshimaMapProps = {
+  isMenuOpen: boolean;
+  onCloseMenu: () => void;
+};
+
+export function ShodoshimaMap({ isMenuOpen, onCloseMenu }: ShodoshimaMapProps) {
+  const isMobile = useIsMobile();
   const { language, t } = useLanguage();
   const mapRef = useRef<MapRef>(null);
   const activeAnimationsRef = useRef(new Map<number, number>());
@@ -101,6 +113,17 @@ export function ShodoshimaMap() {
     () => new Set(allRoutes.map(r => r.route_id)),
   );
   const isPointerDownRef = useRef(false);
+
+  // The roster and route filter keep their own expanded/collapsed state.
+  // Bumping this on each opening remounts them, so the drawer always comes
+  // back collapsed rather than however it was left. Keyed on opening rather
+  // than closing so the sections don't visibly snap shut mid slide-out.
+  const [menuOpenCount, setMenuOpenCount] = useState(0);
+  const [wasMenuOpen, setWasMenuOpen] = useState(isMenuOpen);
+  if (wasMenuOpen !== isMenuOpen) {
+    setWasMenuOpen(isMenuOpen);
+    if (isMenuOpen) setMenuOpenCount(count => count + 1);
+  }
 
   // jumpTo calls map.stop() internally, which aborts whatever interaction is
   // in flight. Re-centring 60 times a second would therefore kill a drag the
@@ -298,11 +321,13 @@ export function ShodoshimaMap() {
 
   // Recentring is an explicit "take me back to the island", so it gives up
   // following. Zooming only changes how closely you're watching, so it doesn't.
+  const islandZoom = isMobile ? ISLAND_ZOOM_MOBILE : ISLAND_CENTER.zoom;
+
   function onRecenter() {
     setFollowedTripId(null);
     mapRef.current?.flyTo({
       center: [ISLAND_CENTER.longitude, ISLAND_CENTER.latitude],
-      zoom: ISLAND_CENTER.zoom,
+      zoom: islandZoom,
     });
   }
 
@@ -363,7 +388,7 @@ export function ShodoshimaMap() {
   return (
     <MapGL
       ref={mapRef}
-      initialViewState={ISLAND_CENTER}
+      initialViewState={{ ...ISLAND_CENTER, zoom: islandZoom }}
       style={{ width: '100%', height: '100%' }}
       mapStyle={MAP_STYLE}
       interactiveLayerIds={['stops-circle', 'buses-circle']}
@@ -374,7 +399,7 @@ export function ShodoshimaMap() {
       // camera moves don't raise dragstart, so the follow can't cancel itself.
       onDragStart={() => setFollowedTripId(null)}
     >
-      <div className='absolute top-3 left-3 z-10'>
+      <div className='absolute top-3 left-3 right-3 z-10 sm:right-auto'>
         <StopSearch onSelectStop={onSelectSearchResult} />
       </div>
 
@@ -384,7 +409,7 @@ export function ShodoshimaMap() {
         href='https://github.com/DeanSpooner'
         target='_blank'
         rel='noopener noreferrer'
-        className='absolute bottom-12 right-3 z-10 rounded-md bg-olive-50 px-2 py-1 text-xs text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100'
+        className='absolute bottom-12 right-3 z-10 hidden rounded-md bg-olive-50 px-2 py-1 text-xs text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100 sm:block'
       >
         {t.builtBy}
       </a>
@@ -728,7 +753,7 @@ export function ShodoshimaMap() {
 
       {/* Side by side rather than stacked: stacked, the upper control's
           dropdown opened underneath the lower one. */}
-      <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
+      <div className='absolute top-16 right-3 z-10 hidden items-start gap-2 sm:top-3 sm:flex'>
         <BusRoster
           buses={visibleBuses}
           followedTripId={followedTripId}
@@ -740,6 +765,38 @@ export function ShodoshimaMap() {
           onToggleRoute={onToggleRoute}
         />
       </div>
+
+      <MobileMenu isOpen={isMenuOpen} onClose={onCloseMenu}>
+        <BusRoster
+          key={`roster-${menuOpenCount}`}
+          variant='panel'
+          buses={visibleBuses}
+          followedTripId={followedTripId}
+          onSelectBus={tripId => {
+            followBus(tripId);
+            onCloseMenu();
+          }}
+        />
+        <RouteFilter
+          key={`routes-${menuOpenCount}`}
+          variant='panel'
+          routes={allRoutes}
+          enabledRouteIds={enabledRouteIds}
+          onToggleRoute={onToggleRoute}
+        />
+
+        <div className='mt-auto flex flex-col gap-3 border-t border-olive-300 pt-4'>
+          <LanguageToggle variant='panel' />
+          <a
+            href='https://github.com/DeanSpooner'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-xs text-olive-700 hover:underline'
+          >
+            {t.builtBy}
+          </a>
+        </div>
+      </MobileMenu>
     </MapGL>
   );
 }

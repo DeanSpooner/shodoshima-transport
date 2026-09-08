@@ -7,13 +7,20 @@ type BusRosterProps = {
   buses: Feature<Point, BusProperties>[];
   followedTripId: string | null;
   onSelectBus: (tripId: string) => void;
+  /**
+   * 'overlay' floats the list over the map; 'panel' expands it in place,
+   * which reads better inside the mobile drawer than a nested dropdown.
+   */
+  variant?: 'overlay' | 'panel';
 };
 
 export function BusRoster({
   buses,
   followedTripId,
   onSelectBus,
+  variant = 'overlay',
 }: BusRosterProps) {
+  const isPanel = variant === 'panel';
   const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,7 +37,7 @@ export function BusRoster({
 
   // Close when clicking anywhere else, including on the map itself.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isPanel) return;
 
     function onPointerDown(e: PointerEvent) {
       if (!containerRef.current?.contains(e.target as Node)) setIsOpen(false);
@@ -38,20 +45,24 @@ export function BusRoster({
 
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [isOpen]);
+  }, [isOpen, isPanel]);
 
   const label =
     buses.length === 0 ? t.noBuses : t.busesInService(buses.length);
 
   return (
-    <div ref={containerRef} className='relative'>
+    <div ref={containerRef} className={isPanel ? '' : 'relative'}>
       <button
         type='button'
         onClick={() => setIsOpen(open => !open)}
         disabled={buses.length === 0}
         aria-expanded={isOpen}
         aria-haspopup='listbox'
-        className='flex items-center gap-1.5 rounded-md bg-olive-50 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 enabled:hover:bg-olive-100 disabled:cursor-default'
+        className={`flex items-center gap-1.5 rounded-md bg-olive-50 text-olive-800 transition-colors duration-200 enabled:hover:bg-olive-100 disabled:cursor-default ${
+          isPanel
+            ? 'w-full justify-between px-3 py-2.5 text-sm font-medium'
+            : 'px-3 py-1.5 text-xs font-medium shadow-md'
+        }`}
       >
         {label}
         {buses.length > 0 && (
@@ -75,7 +86,11 @@ export function BusRoster({
       {isOpen && buses.length > 0 && (
         <ul
           role='listbox'
-          className='absolute right-0 mt-1.5 w-72 max-h-72 overflow-y-auto stop-schedule-list rounded-md border border-olive-300 bg-olive-50 p-1 shadow-lg'
+          className={`stop-schedule-list overflow-y-auto rounded-md border border-olive-300 bg-olive-50 p-1 ${
+            isPanel
+              ? 'mt-1 max-h-64 w-full'
+              : 'absolute right-0 mt-1.5 max-h-72 w-72 shadow-lg'
+          }`}
         >
           {buses.map(bus => {
             const p = bus.properties;

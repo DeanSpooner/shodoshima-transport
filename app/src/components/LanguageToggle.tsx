@@ -5,8 +5,14 @@ const OPTIONS: { value: Language; label: string }[] = [
   { value: 'ja', label: '日本語' },
 ];
 
-export function LanguageToggle() {
+type LanguageToggleProps = {
+  /** 'header' sits on the dark bar; 'panel' on the light mobile drawer. */
+  variant?: 'header' | 'panel';
+};
+
+export function LanguageToggle({ variant = 'header' }: LanguageToggleProps) {
   const { language, setLanguage, t } = useLanguage();
+  const isPanel = variant === 'panel';
 
   // One control rather than two buttons: clicking anywhere on it flips to the
   // other language, so hitting the already-active half still does something.
@@ -19,7 +25,11 @@ export function LanguageToggle() {
       onClick={() => setLanguage(other)}
       aria-label={t.switchLanguage}
       title={t.switchLanguage}
-      className='flex items-center gap-0.5 rounded-md bg-olive-900/40 p-0.5 transition-colors duration-200 hover:bg-olive-900/60'
+      className={`flex items-center gap-0.5 rounded-md p-0.5 transition-colors duration-200 ${
+        isPanel
+          ? 'w-full bg-olive-200 hover:bg-olive-300'
+          : 'bg-olive-900/40 hover:bg-olive-900/60'
+      }`}
     >
       {OPTIONS.map(option => {
         const isActive = option.value === language;
@@ -27,10 +37,16 @@ export function LanguageToggle() {
           <span
             key={option.value}
             lang={option.value}
-            className={`rounded px-2 py-0.5 text-xs font-medium transition-colors duration-200 ${
+            className={`rounded text-xs font-medium transition-colors duration-200 ${
+              isPanel ? 'flex-1 px-2 py-1.5 text-center' : 'px-2 py-0.5'
+            } ${
               isActive
-                ? 'bg-olive-100 text-olive-900'
-                : 'text-olive-200'
+                ? isPanel
+                  ? 'bg-olive-50 text-olive-900'
+                  : 'bg-olive-100 text-olive-900'
+                : isPanel
+                  ? 'text-olive-700'
+                  : 'text-olive-200'
             }`}
           >
             {option.label}

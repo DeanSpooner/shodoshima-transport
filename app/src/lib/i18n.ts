@@ -10,6 +10,8 @@ type Strings = {
   searchPlaceholder: string;
   searchNoResults: string;
   clearSearch: string;
+  menu: string;
+  openMenu: string;
   japanTime: string;
   languageLabel: string;
   /** Describes what the toggle will do, for screen readers. */
@@ -42,6 +44,8 @@ export const STRINGS: Record<Language, Strings> = {
     searchPlaceholder: 'Search stops',
     searchNoResults: 'No matching stops',
     clearSearch: 'Clear search',
+    menu: 'Menu',
+    openMenu: 'Open menu',
     japanTime: 'JST',
     languageLabel: 'Language',
     switchLanguage: 'Switch to Japanese',
@@ -68,6 +72,8 @@ export const STRINGS: Record<Language, Strings> = {
     searchPlaceholder: '停留所を検索',
     searchNoResults: '該当する停留所はありません',
     clearSearch: '検索をクリア',
+    menu: 'メニュー',
+    openMenu: 'メニューを開く',
     japanTime: '日本時間',
     languageLabel: '言語',
     switchLanguage: '英語に切り替える',

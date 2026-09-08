@@ -6,19 +6,23 @@ type RouteFilterProps = {
   routes: RouteInfo[];
   enabledRouteIds: Set<string>;
   onToggleRoute: (routeId: string) => void;
+  /** See BusRoster: 'panel' expands in place for the mobile drawer. */
+  variant?: 'overlay' | 'panel';
 };
 
 export function RouteFilter({
   routes,
   enabledRouteIds,
   onToggleRoute,
+  variant = 'overlay',
 }: RouteFilterProps) {
+  const isPanel = variant === 'panel';
   const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isPanel) return;
 
     function onPointerDown(e: PointerEvent) {
       if (!containerRef.current?.contains(e.target as Node)) setIsOpen(false);
@@ -26,17 +30,21 @@ export function RouteFilter({
 
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [isOpen]);
+  }, [isOpen, isPanel]);
 
   const hiddenCount = routes.length - enabledRouteIds.size;
 
   return (
-    <div ref={containerRef} className='relative'>
+    <div ref={containerRef} className={isPanel ? '' : 'relative'}>
       <button
         type='button'
         onClick={() => setIsOpen(open => !open)}
         aria-expanded={isOpen}
-        className='flex items-center gap-1.5 rounded-md bg-olive-50 px-3 py-1.5 text-xs font-medium text-olive-800 shadow-md transition-colors duration-200 hover:bg-olive-100'
+        className={`flex items-center gap-1.5 rounded-md bg-olive-50 text-olive-800 transition-colors duration-200 hover:bg-olive-100 ${
+          isPanel
+            ? 'w-full justify-between px-3 py-2.5 text-sm font-medium'
+            : 'px-3 py-1.5 text-xs font-medium shadow-md'
+        }`}
       >
         {hiddenCount === 0
           ? t.allRoutes
@@ -58,7 +66,11 @@ export function RouteFilter({
       </button>
 
       {isOpen && (
-        <div className='absolute right-0 mt-1.5 w-72 rounded-md border border-olive-300 bg-olive-50 p-1 shadow-lg'>
+        <div
+          className={`rounded-md border border-olive-300 bg-olive-50 p-1 ${
+            isPanel ? 'mt-1 w-full' : 'absolute right-0 mt-1.5 w-72 shadow-lg'
+          }`}
+        >
           {routes.map(route => {
             const isEnabled = enabledRouteIds.has(route.route_id);
             return (
@@ -84,17 +96,21 @@ export function RouteFilter({
                       route.route_short_name_en,
                     )}
                   </span>
-                  <span
-                    className={`block truncate text-xs ${
-                      isEnabled ? 'text-clay-600' : 'text-olive-400'
-                    }`}
-                  >
-                    {localisedName(
-                      language,
-                      route.route_long_name,
-                      route.route_long_name_en,
-                    )}
-                  </span>
+                  {/* What the route actually connects, which identifies it
+                      better than the name alone. */}
+                  {route.endpoints.map(endpoint => (
+                    <span
+                      key={endpoint.ja}
+                      // Wraps rather than truncates: these lines are the
+                      // point of the row, so losing their tail to an ellipsis
+                      // would defeat it.
+                      className={`block text-xs ${
+                        isEnabled ? 'text-clay-600' : 'text-olive-400'
+                      }`}
+                    >
+                      {language === 'en' ? endpoint.en : endpoint.ja}
+                    </span>
+                  ))}
                 </span>
               </label>
             );
